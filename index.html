@@ -133,6 +133,10 @@
       animation: spin 1s linear infinite;
     }
 
+    #continueBtn {
+      display: none;
+    }
+
     @keyframes spin {
       to {
         transform: rotate(360deg);
@@ -517,6 +521,24 @@
       }
       if (!document.getElementById('guessArtistInput').contains(e.target)) {
         hideAutocomplete('artistAutocomplete');
+      }
+    });
+
+    // NEW: switch mode dynamically without reloading playlist
+    document.getElementById('modeSelect').addEventListener('change', () => {
+      const newMode = document.getElementById('modeSelect').value;
+      if (newMode !== mode) {
+        mode = newMode;
+        songsPlayed = 0;
+        score = 0;
+        updateScore(0);
+        usedSongs.clear();
+        messageP.textContent = '';
+        document.getElementById('feedback').textContent = '';
+        document.getElementById('answer').style.display = 'none';
+        resetButtons(true);
+        enableInputs(true);
+        startNewRound();
       }
     });
   </script>
