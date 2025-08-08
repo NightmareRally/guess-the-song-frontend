@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Guess the Song Game</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #121212;
+      color: #ddd;
+      padding: 20px;
+      max-width: 600px;
+      margin: auto;
+      user-select: none;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 25px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: #b892ff;
+      text-shadow: 0 0 10px #b892ff66;
+    }
+
+    input[type="text"],
+    select {
+      background-color: #1f1f2e;
+      border: 1.5px solid #6f47ff;
+      color: #eee;
+      padding: 12px 15px;
+      font-size: 16px;
+      width: 100%;
+      box-sizing: border-box;
+      margin-bottom: 15px;
+      border-radius: 8px;
+      transition: border-color 0.3s ease;
+    }
+
+    input[type="text"]:focus,
+    select:focus {
+      border-color: #b892ff;
+      outline: none;
+      box-shadow: 0 0 8px #b892ff88;
+    }
+
+    button {
+      background-color: #6f47ff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 18px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 8px 0;
+      font-weight: 600;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      user-select: none;
+      box-shadow: 0 0 5px #6f47ffcc;
+    }
+
+    button:hover {
+      background-color: #b892ff;
+      box-shadow: 0 0 15px #b892ffdd;
+    }
+
+    #gameControls {
+      margin-top: 30px;
+      border: 1.5px solid #6f47ff;
+      border-radius: 12px;
+      padding: 25px 20px 30px 20px;
+      background: #1a1a2e;
+      box-shadow: 0 0 15px #6f47ff44;
+    }
+
+    #scoreDisplay {
+      font-size: 20px;
+      color: #b892ff;
+      font-weight: 700;
+      margin-bottom: 15px;
+      display: inline-block;
+      user-select: text;
+    }
+
+    #answer,
+    #feedback,
+    #hintDuration,
+    #message {
+      margin-top: 12px;
+      font-weight: 600;
+      color: #ddd;
+      user-select: text;
+    }
+
+    .autocomplete-list {
+      border: 1px solid #5548ff;
+      max-height: 150px;
+      overflow-y: auto;
+      position: absolute;
+      background: #2c2c4a;
+      width: 100%;
+      z-index: 1000;
+      border-radius: 8px;
+      user-select: none;
+    }
+
+    .autocomplete-item {
+      padding: 10px 12px;
+      cursor: pointer;
+      color: #ddd;
+      transition: background-color 0.2s ease;
+    }
+
+    .autocomplete-item:hover {
+      background-color: #6f47ffaa;
+      color: white;
+    }
+
+    .input-container {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    #loader {
+      display: none;
+      margin: 20px auto;
+      width: 45px;
+      height: 45px;
+      border: 5px solid #6f47ff;
+      border-top: 5px solid transparent;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Guess the Song Game</h1>
+
+  <label for="modeSelect">Choose Mode:</label>
+  <select id="modeSelect">
+    <option value="infinite">Infinite Mode</option>
+    <option value="challenge">Challenge Mode (5 songs, 25 points)</option>
+  </select>
+
+  <input id="playlistUrl" type="text" placeholder="Paste Spotify Playlist URL here" />
+  <button onclick="loadPlaylist()">Load Playlist</button>
+
+  <div id="loader"></div>
+
+  <p id="message"></p>
+
+  <div id="gameControls" style="display:none;">
+    <p><strong>Score:</strong> <span id="scoreDisplay">0</span></p>
+
+    <button id="playBtn" onclick="playHint()">Play</button>
+    <button id="nextHintBtn" onclick="nextHint()">Next Hint</button>
+    <button id="giveUpBtn" onclick="revealAnswer()">I Give Up</button>
+    <button id="nextSongBtn" onclick="startNewRound()" style="display:none;">Next Song</button>
+
+    <div style="margin-top: 20px;">
+      <div class="input-container">
+        <input id="guessSongInput" type="text" placeholder="Guess the song name..." autocomplete="off" />
+        <div id="songAutocomplete" class="autocomplete-list" style="display:none;"></div>
+      </div>
+      <div class="input-container">
+        <input id="guessArtistInput" type="text" placeholder="Guess the artist name..." autocomplete="off" />
+        <div id="artistAutocomplete" class="autocomplete-list" style="display:none;"></div>
+      </div>
+      <button id="submitGuessBtn" onclick="submitGuess()">Submit Guess</button>
+    </div>
+
+    <p id="hintDuration"></p>
+    <p id="feedback"></p>
+    <p id="answer" style="display:none;"></p>
+  </div>
+
+  <button id="playAgainBtn" onclick="playAgain()" style="display:none; margin-top: 30px;">Play Again</button>
+
+  <script>
+    const backendUrl = 'https://a91bc89a-7233-4413-aa50-6078a40a64f7-00-2wqdum6v1dm0t.riker.replit.dev';
+    let songs = [];
+    let usedSongs = new Set();
+    let currentSong = null;
+    let audio = null;
+    let hintStages = [0.5, 1, 2, 5, 10, 15];
+    let scoring = [10, 8, 6, 4, 2, 1];
+    let currentHintIndex = 0;
+    let snippetTimeout = null;
+    let score = 0;
+    let roundOver = false;
+
+    let mode = 'infinite';
+    const challengeMaxSongs = 5;
+    const challengeGoalPoints = 25;
+    let songsPlayed = 0;
+
+    const messageP = document.getElementById('message');
+    const loader = document.getElementById('loader');
+
+    function updateScore(points) {
+      score += points;
+      document.getElementById('scoreDisplay').textContent = Math.round(score * 10) / 10;
+    }
+
+    function extractPlaylistId(url) {
+      const match = url.match(/playlist\/([a-zA-Z0-9]+)(\?.*)?$/);
+      return match ? match[1] : null;
+    }
+
+    async function loadPlaylist() {
+      const playlistUrl = document.getElementById('playlistUrl').value.trim();
+      const playlistId = extractPlaylistId(playlistUrl);
+
+      if (!playlistId) {
+        alert('Please enter a valid Spotify playlist URL.');
+        return;
+      }
+
+      // Show loader while loading
+      loader.style.display = 'block';
+
+      try {
+        const response = await fetch(`${backendUrl}/playlist/${playlistId}`);
+        if (!response.ok) {
+          alert('Failed to load playlist.');
+          loader.style.display = 'none';
+          return;
+        }
+
+        const data = await response.json();
+        songs = data.filter(song => song.preview_url);
+        if (songs.length === 0) {
+          alert('No playable songs found.');
+          loader.style.display = 'none';
+          return;
+        }
+
+        mode = document.getElementById('modeSelect').value;
+        songsPlayed = 0;
+
+        score = 0;
+        updateScore(0);
+        document.getElementById('gameControls').style.display = 'block';
+        resetButtons(true);
+        document.getElementById('playAgainBtn').style.display = 'none';
+        enableInputs(true);
+        startNewRound();
+      } catch (error) {
+        console.error('Error loading playlist:', error);
+        alert('Something went wrong.');
+      } finally {
+        // Hide loader after attempt completes
+        loader.style.display = 'none';
+      }
+    }
+
+    function resetButtons(active) {
+      document.getElementById('playBtn').disabled = !active;
+      document.getElementById('nextHintBtn').disabled = !active;
+      document.getElementById('giveUpBtn').disabled = !active;
+      document.getElementById('submitGuessBtn').disabled = !active;
+      document.getElementById('nextSongBtn').style.display = active ? 'none' : 'inline-block';
+    }
+
+    function enableInputs(enabled) {
+      document.getElementById('guessSongInput').disabled = !enabled;
+      document.getElementById('guessArtistInput').disabled = !enabled;
+    }
+
+    function startNewRound() {
+      if (mode === 'challenge' && songsPlayed >= challengeMaxSongs) {
+        endGame();
+        return;
+      }
+
+      roundOver = false;
+      resetButtons(true);
+      enableInputs(true);
+
+      clearTimeout(snippetTimeout);
+      if (audio) {
+        audio.pause();
+        audio = null;
+      }
+
+      currentHintIndex = 0;
+      document.getElementById('answer').style.display = 'none';
+      document.getElementById('answer').textContent = '';
+      document.getElementById('feedback').textContent = '';
+      document.getElementById('hintDuration').textContent = '';
+      document.getElementById('guessSongInput').value = '';
+      document.getElementById('guessArtistInput').value = '';
+      hideAutocomplete('songAutocomplete');
+      hideAutocomplete('artistAutocomplete');
+
+      let attempts = 0;
+      do {
+        currentSong = songs[Math.floor(Math.random() * songs.length)];
+        attempts++;
+      } while (usedSongs.has(currentSong.name + currentSong.artist) && attempts < 10);
+
+      usedSongs.add(currentSong.name + currentSong.artist);
+      songsPlayed++;
+
+      if (mode === 'challenge') {
+        messageP.textContent = `Challenge Mode: Song ${songsPlayed} of ${challengeMaxSongs}`;
+      } else {
+        messageP.textContent = '';
+      }
+      document.getElementById('playAgainBtn').style.display = 'none';
+    }
+
+    function playHint(durationOverride = null) {
+      if (!currentSong || !currentSong.preview_url) {
+        alert('No preview available.');
+        return;
+      }
+
+      if (audio) {
+        audio.pause();
+        audio = null;
+      }
+
+      const duration = durationOverride || hintStages[currentHintIndex];
+      document.getElementById('hintDuration').textContent = `🎧 Playing hint: ${duration} second${duration > 1 ? 's' : ''}`;
+
+      audio = new Audio(currentSong.preview_url);
+      audio.currentTime = 0;
+
+      audio.play().then(() => {
+        if (!durationOverride) {
+          snippetTimeout = setTimeout(() => {
+            audio.pause();
+          }, duration * 1000);
+        } else {
+          snippetTimeout = null;
+        }
+      }).catch(err => {
+        console.error('Audio playback error:', err);
+      });
+    }
+
+    function nextHint() {
+      if (roundOver) return;
+      currentHintIndex++;
+      if (currentHintIndex >= hintStages.length) {
+        revealAnswer(true);
+      } else {
+        playHint();
+      }
+    }
+
+    function submitGuess() {
+      if (roundOver) return;
+
+      const guessSong = document.getElementById('guessSongInput').value.trim().toLowerCase();
+      const guessArtist = document.getElementById('guessArtistInput').value.trim().toLowerCase();
+      const songName = currentSong.name.toLowerCase();
+      const artistName = currentSong.artist.toLowerCase();
+
+      if (!guessSong && !guessArtist) {
+        alert('Please enter a guess for the song or the artist.');
+        return;
+      }
+
+      const matchSong = guessSong && (songName.includes(guessSong) || guessSong.includes(songName));
+      const matchArtist = guessArtist && (artistName.includes(guessArtist) || guessArtist.includes(artistName));
+      const matchBoth = matchSong && matchArtist;
+
+      const feedbackEl = document.getElementById('feedback');
+      const points = scoring[currentHintIndex] || 0;
+
+      if (matchBoth) {
+        feedbackEl.textContent = `✅ Correct! You guessed both song and artist. +${points} pts`;
+        updateScore(points);
+        showAnswer();
+        playHint(30);
+        roundOver = true;
+        resetButtons(false);
+        document.getElementById('nextSongBtn').style.display = 'inline-block';
+      } else if (matchSong || matchArtist) {
+        const partialPoints = points / 2;
+        feedbackEl.textContent = `🟡 Partial match! +${partialPoints} pts`;
+        updateScore(partialPoints);
+        showAnswer();
+        playHint(30);
+        roundOver = true;
+        resetButtons(false);
+        document.getElementById('nextSongBtn').style.display = 'inline-block';
+      } else {
+        feedbackEl.textContent = `❌ Nope! Try again or use a hint.`;
+      }
+    }
+
+    function showAnswer() {
+      const answerEl = document.getElementById('answer');
+      answerEl.textContent = `🎵 ${currentSong.name} — ${currentSong.artist}`;
+      answerEl.style.display = 'block';
+      document.getElementById('hintDuration').textContent = '';
+    }
+
+    function revealAnswer(playFull = true) {
+      if (roundOver) return;
+      showAnswer();
+      roundOver = true;
+      resetButtons(false);
+      document.getElementById('nextSongBtn').style.display = 'inline-block';
+
+      if (playFull && currentSong.preview_url) {
+        if (audio) audio.pause();
+        audio = new Audio(currentSong.preview_url);
+        audio.play();
+      }
+    }
+
+    function endGame() {
+      resetButtons(false);
+      enableInputs(false);
+      document.getElementById('nextSongBtn').style.display = 'none';
+
+      if (score >= challengeGoalPoints) {
+        messageP.textContent = `🎉 Congratulations! You scored ${Math.round(score)} points and won the challenge!`;
+      } else {
+        messageP.textContent = `Game Over! You scored ${Math.round(score)} points. Try again to reach ${challengeGoalPoints} points.`;
+      }
+
+      if (audio) {
+        audio.pause();
+        audio = null;
+      }
+      if (mode === 'challenge') {
+        document.getElementById('playAgainBtn').style.display = 'inline-block';
+      }
+    }
+
+    function playAgain() {
+      usedSongs.clear();
+      score = 0;
+      songsPlayed = 0;
+      updateScore(0);
+      messageP.textContent = '';
+      document.getElementById('feedback').textContent = '';
+      document.getElementById('answer').style.display = 'none';
+      document.getElementById('playAgainBtn').style.display = 'none';
+      enableInputs(true);
+      resetButtons(true);
+      startNewRound();
+    }
+
+    function showAutocomplete(listId, matches, inputElement) {
+      const list = document.getElementById(listId);
+      list.innerHTML = '';
+      if (matches.length === 0) {
+        list.style.display = 'none';
+        return;
+      }
+      matches.forEach(item => {
+        const div = document.createElement('div');
+        div.textContent = item;
+        div.className = 'autocomplete-item';
+        div.onclick = () => {
+          inputElement.value = item;
+          hideAutocomplete(listId);
+          inputElement.focus();
+        };
+        list.appendChild(div);
+      });
+      list.style.display = 'block';
+    }
+    function hideAutocomplete(listId) {
+      const list = document.getElementById(listId);
+      list.style.display = 'none';
+      list.innerHTML = '';
+    }
+
+    document.getElementById('guessSongInput').addEventListener('input', function () {
+      const val = this.value.trim().toLowerCase();
+      if (!val) {
+        hideAutocomplete('songAutocomplete');
+        return;
+      }
+      const songMatches = [...new Set(songs
+        .map(s => s.name)
+        .filter(name => name.toLowerCase().includes(val))
+        .slice(0, 10)
+      )];
+      showAutocomplete('songAutocomplete', songMatches, this);
+    });
+
+    document.getElementById('guessArtistInput').addEventListener('input', function () {
+      const val = this.value.trim().toLowerCase();
+      if (!val) {
+        hideAutocomplete('artistAutocomplete');
+        return;
+      }
+      const artistSet = new Set();
+      songs.forEach(s => {
+        s.artist.split(',').forEach(a => artistSet.add(a.trim()));
+      });
+      const artistMatches = [...artistSet]
+        .filter(name => name.toLowerCase().includes(val))
+        .slice(0, 10);
+      showAutocomplete('artistAutocomplete', artistMatches, this);
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!document.getElementById('guessSongInput').contains(e.target)) {
+        hideAutocomplete('songAutocomplete');
+      }
+      if (!document.getElementById('guessArtistInput').contains(e.target)) {
+        hideAutocomplete('artistAutocomplete');
+      }
+    });
+  </script>
+</body>
+
+</html>
