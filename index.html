@@ -202,38 +202,25 @@
       }
     }
 
-    /* Scoreboard styling */
-    #scoreboard {
-      margin-top: 20px;
-      background: #2a2a4a;
+    /* Multiplayer player setup */
+    #multiplayerSetup {
+      margin-top: 25px;
+      border: 1.5px solid #6f47ff;
       border-radius: 12px;
       padding: 20px;
-      box-shadow: 0 0 20px #b892ffaa;
-      user-select: text;
+      background: #1a1a2e;
+      box-shadow: 0 0 15px #6f47ff44;
+      display: none;
     }
 
-    #scoreboard h2 {
-      color: #b892ff;
-      margin-bottom: 15px;
-      text-align: center;
-    }
-
-    #scoreboard table {
+    #playerCountSelect {
       width: 100%;
-      border-collapse: collapse;
-      color: #ddd;
+      margin-bottom: 15px;
     }
 
-    #scoreboard th,
-    #scoreboard td {
-      padding: 10px;
-      border-bottom: 1px solid #5548ff;
-      text-align: center;
-    }
-
-    #scoreboard th {
-      background-color: #6f47ff;
-      font-weight: 700;
+    .playerNameInput {
+      margin-bottom: 12px;
+      width: 100%;
     }
   </style>
 </head>
@@ -248,31 +235,29 @@
     <option value="multiplayer">Multiplayer Mode</option>
   </select>
 
-  <div id="multiplayerSetup" style="display:none; margin-top:15px;">
-    <label for="numPlayersSelect">Number of Players (2-6):</label>
-    <select id="numPlayersSelect">
-      <option value="" selected disabled>Select number of players</option>
-      <option value="2">2</option>
-      <option value="3">3</option>
-      <option value="4">4</option>
-      <option value="5">5</option>
-      <option value="6">6</option>
-    </select>
-
-    <div id="playerNamesInputs" style="margin-top: 15px;"></div>
-    <button id="startMultiplayerBtn" style="margin-top: 15px; display:none;">Start Multiplayer Game</button>
-  </div>
-
-  <input id="playlistUrl" type="text" placeholder="Paste Spotify Playlist URL here" style="margin-top: 15px;" />
+  <input id="playlistUrl" type="text" placeholder="Paste Spotify Playlist URL here" />
   <button onclick="loadPlaylist()">Load Playlist</button>
 
   <div id="loader"></div>
 
   <p id="message"></p>
 
+  <div id="multiplayerSetup">
+    <label for="playerCountSelect">Number of Players:</label>
+    <select id="playerCountSelect">
+      <option value="2">2 Players</option>
+      <option value="3">3 Players</option>
+      <option value="4">4 Players</option>
+      <option value="5">5 Players</option>
+      <option value="6">6 Players</option>
+    </select>
+    <div id="playerNamesContainer"></div>
+    <button id="startMultiplayerBtn" onclick="startMultiplayerGame()">Start Multiplayer Game</button>
+  </div>
+
   <div id="gameControls" style="display:none;">
     <p><strong>Score:</strong> <span id="scoreDisplay">0</span></p>
-    <p id="currentPlayerDisplay" style="font-weight:700; margin-bottom: 10px;"></p>
+    <p id="currentPlayerDisplay" style="color:#b892ff; font-weight:700;"></p>
 
     <div id="buttonRow">
       <button id="playBtn" onclick="playHint()">Play</button>
@@ -300,7 +285,8 @@
 
   <button id="playAgainBtn" onclick="playAgain()" style="display:none; margin-top: 30px;">Play Again</button>
 
-  <div id="scoreboard" style="display:none;"></div>
+  <div id="scoreboard" style="display:none; margin-top: 25px; border: 1.5px solid #6f47ff; border-radius: 12px; padding: 20px; background: #1a1a2e; box-shadow: 0 0 15px #6f47ff44;">
+  </div>
 
   <script>
     const backendUrl = 'https://guess-the-song-backend.onrender.com';
@@ -320,102 +306,83 @@
     const challengeGoalPoints = 25;
     let songsPlayed = 0;
 
-    // Multiplayer variables
+    // Multiplayer state
     let players = [];
     let currentPlayerIndex = 0;
-    let totalRounds = 5;
     let currentRound = 1;
+    const totalRounds = 5;
 
     const messageP = document.getElementById('message');
     const loader = document.getElementById('loader');
     const gameControls = document.getElementById('gameControls');
-    const nextSongBtn = document.getElementById('nextSongBtn');
     const currentPlayerDisplay = document.getElementById('currentPlayerDisplay');
     const multiplayerSetup = document.getElementById('multiplayerSetup');
-    const numPlayersSelect = document.getElementById('numPlayersSelect');
-    const playerNamesInputs = document.getElementById('playerNamesInputs');
-    const startMultiplayerBtn = document.getElementById('startMultiplayerBtn');
+    const playerCountSelect = document.getElementById('playerCountSelect');
+    const playerNamesContainer = document.getElementById('playerNamesContainer');
+    const nextSongBtn = document.getElementById('nextSongBtn');
 
-    // Show/hide multiplayer setup based on mode select
-    document.getElementById('modeSelect').addEventListener('change', () => {
-      mode = document.getElementById('modeSelect').value;
-      resetMultiplayerSetup();
-      if (mode === 'multiplayer') {
-        multiplayerSetup.style.display = 'block';
-      } else {
-        multiplayerSetup.style.display = 'none';
-      }
-      resetGameState();
+    // Update player name inputs on player count change
+    playerCountSelect.addEventListener('change', () => {
+      updatePlayerNameInputs();
     });
 
-    // When number of players selected, show inputs for player names
-    numPlayersSelect.addEventListener('change', () => {
-      const count = parseInt(numPlayersSelect.value);
-      playerNamesInputs.innerHTML = '';
-      if (count >= 2 && count <= 6) {
-        for (let i = 0; i < count; i++) {
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.placeholder = `Player ${i + 1} Name`;
-          input.required = true;
-          input.style.marginBottom = '8px';
-          playerNamesInputs.appendChild(input);
-        }
-        startMultiplayerBtn.style.display = 'inline-block';
-      } else {
-        startMultiplayerBtn.style.display = 'none';
-      }
-    });
+    // Initialize player name inputs on page load
+    updatePlayerNameInputs();
 
-    // Start multiplayer game: read player names, init players array, and start game if playlist loaded
-    startMultiplayerBtn.addEventListener('click', () => {
-      const inputs = playerNamesInputs.querySelectorAll('input');
-      players = [];
-      let allFilled = true;
-      inputs.forEach((input, i) => {
-        const name = input.value.trim();
-        if (!name) allFilled = false;
-        players.push({ name: name || `Player ${i + 1}`, score: 0 });
-      });
-      if (!allFilled) {
-        alert('Please fill in all player names.');
-        return;
+    function updatePlayerNameInputs() {
+      playerNamesContainer.innerHTML = '';
+      const count = parseInt(playerCountSelect.value, 10);
+      for (let i = 0; i < count; i++) {
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = `Player ${i + 1} Name`;
+        input.className = 'playerNameInput';
+        playerNamesContainer.appendChild(input);
       }
-      resetGameState();
-      if (songs.length === 0) {
-        alert('Load a playlist first!');
-        return;
-      }
-      multiplayerSetup.style.display = 'none';
-      startMultiplayerGame();
-    });
-
-    function resetMultiplayerSetup() {
-      multiplayerSetup.style.display = 'none';
-      playerNamesInputs.innerHTML = '';
-      startMultiplayerBtn.style.display = 'none';
-      numPlayersSelect.value = '';
     }
 
-    function resetGameState() {
+    // Mode select change handler to show/hide multiplayer setup
+    document.getElementById('modeSelect').addEventListener('change', () => {
+      const newMode = document.getElementById('modeSelect').value;
+      mode = newMode;
+      resetGameUIForMode();
+    });
+
+    function resetGameUIForMode() {
       usedSongs.clear();
       score = 0;
       songsPlayed = 0;
-      currentRound = 1;
+      currentHintIndex = 0;
+      roundOver = false;
+      currentSong = null;
       currentPlayerIndex = 0;
-      players.forEach(p => p.score = 0);
+      currentRound = 1;
+      players = [];
       messageP.textContent = '';
       document.getElementById('feedback').textContent = '';
       document.getElementById('answer').style.display = 'none';
-      document.getElementById('playAgainBtn').style.display = 'none';
-      document.getElementById('scoreboard').style.display = 'none';
-      updateScore(0);
-      resetButtons(true);
-      enableInputs(true);
+      document.getElementById('answer').textContent = '';
+      document.getElementById('hintDuration').textContent = '';
+      document.getElementById('guessSongInput').value = '';
+      document.getElementById('guessArtistInput').value = '';
       hideAutocomplete('songAutocomplete');
       hideAutocomplete('artistAutocomplete');
+      updateScoreDisplay();
+
+      if (mode === 'multiplayer') {
+        multiplayerSetup.style.display = 'block';
+        gameControls.style.display = 'none';
+        document.getElementById('playAgainBtn').style.display = 'none';
+        document.getElementById('scoreboard').style.display = 'none';
+      } else {
+        multiplayerSetup.style.display = 'none';
+        gameControls.style.display = 'none';
+        document.getElementById('playAgainBtn').style.display = 'none';
+        document.getElementById('scoreboard').style.display = 'none';
+      }
     }
 
+    // Load playlist function updated to show multiplayer setup if needed
     async function loadPlaylist() {
       const playlistUrl = document.getElementById('playlistUrl').value.trim();
       const playlistId = extractPlaylistId(playlistUrl);
@@ -443,18 +410,25 @@
           return;
         }
 
-        if (mode !== 'multiplayer') {
-          songsPlayed = 0;
-          score = 0;
-          updateScore(0);
-          gameControls.style.display = 'block';
-          resetButtons(true);
-          document.getElementById('playAgainBtn').style.display = 'none';
-          enableInputs(true);
-          startNewRound();
-        } else {
-          alert('Playlist loaded! Now enter player names and start multiplayer game.');
+        songsPlayed = 0;
+        score = 0;
+        updateScore(0);
+        resetButtons(true);
+        enableInputs(true);
+        messageP.textContent = '';
+
+        if (mode === 'multiplayer') {
+          multiplayerSetup.style.display = 'block';
           gameControls.style.display = 'none';
+          document.getElementById('playAgainBtn').style.display = 'none';
+          document.getElementById('scoreboard').style.display = 'none';
+          messageP.textContent = 'Playlist loaded! Enter player names and start multiplayer game.';
+        } else {
+          multiplayerSetup.style.display = 'none';
+          gameControls.style.display = 'block';
+          document.getElementById('playAgainBtn').style.display = 'none';
+          document.getElementById('scoreboard').style.display = 'none';
+          startNewRound();
         }
       } catch (error) {
         console.error('Error loading playlist:', error);
@@ -464,30 +438,142 @@
       }
     }
 
-    function extractPlaylistId(url) {
-      const match = url.match(/playlist\/([a-zA-Z0-9]+)(\?.*)?$/);
-      return match ? match[1] : null;
+    // Multiplayer game start
+    function startMultiplayerGame() {
+      // Read player names and validate
+      players = [];
+      const inputs = playerNamesContainer.querySelectorAll('input');
+      for (const input of inputs) {
+        const name = input.value.trim();
+        if (!name) {
+          alert('Please enter all player names.');
+          return;
+        }
+        players.push({ name, score: 0 });
+      }
+      if (players.length < 2) {
+        alert('At least 2 players are required for multiplayer mode.');
+        return;
+      }
+
+      // Reset multiplayer state
+      usedSongs.clear();
+      currentPlayerIndex = 0;
+      currentRound = 1;
+      roundOver = false;
+      score = 0;
+      songsPlayed = 0;
+      currentHintIndex = 0;
+      currentSong = null;
+      messageP.textContent = '';
+      document.getElementById('feedback').textContent = '';
+      document.getElementById('answer').style.display = 'none';
+      document.getElementById('answer').textContent = '';
+      document.getElementById('hintDuration').textContent = '';
+      document.getElementById('guessSongInput').value = '';
+      document.getElementById('guessArtistInput').value = '';
+      hideAutocomplete('songAutocomplete');
+      hideAutocomplete('artistAutocomplete');
+
+      multiplayerSetup.style.display = 'none';
+      gameControls.style.display = 'block';
+      document.getElementById('playAgainBtn').style.display = 'none';
+      document.getElementById('scoreboard').style.display = 'none';
+      resetButtons(true);
+      enableInputs(true);
+
+      updateCurrentPlayerDisplay();
+      startNewTurn();
     }
 
-    function resetButtons(active) {
-      document.getElementById('playBtn').disabled = !active;
-      document.getElementById('nextHintBtn').disabled = !active;
-      document.getElementById('giveUpBtn').disabled = !active;
-      document.getElementById('submitGuessBtn').disabled = !active;
-      nextSongBtn.style.display = active ? 'none' : 'inline-block';
+    // Multiplayer turn logic
+    function startNewTurn() {
+      if (currentRound > totalRounds) {
+        endMultiplayerGame();
+        return;
+      }
+
+      roundOver = false;
+      resetButtons(true);
+      enableInputs(true);
+
+      clearTimeout(snippetTimeout);
+      if (audio) {
+        audio.pause();
+        audio = null;
+      }
+
+      currentHintIndex = 0;
+      document.getElementById('answer').style.display = 'none';
+      document.getElementById('answer').textContent = '';
+      document.getElementById('feedback').textContent = '';
+      document.getElementById('hintDuration').textContent = '';
+      document.getElementById('guessSongInput').value = '';
+      document.getElementById('guessArtistInput').value = '';
+      hideAutocomplete('songAutocomplete');
+      hideAutocomplete('artistAutocomplete');
+
+      // Pick unused song
+      let attempts = 0;
+      do {
+        currentSong = songs[Math.floor(Math.random() * songs.length)];
+        attempts++;
+      } while (usedSongs.has(currentSong.name + currentSong.artist) && attempts < 20);
+
+      usedSongs.add(currentSong.name + currentSong.artist);
+      songsPlayed++;
+
+      messageP.textContent = `Round ${currentRound} / ${totalRounds} — ${players[currentPlayerIndex].name}'s turn`;
+      updateCurrentPlayerDisplay();
+      nextSongBtn.style.display = 'none';
+    }
+
+    // Overwrite nextSongBtn behavior for multiplayer
+    nextSongBtn.onclick = function () {
       if (mode === 'multiplayer') {
-        nextSongBtn.textContent = 'Next Player';
+        advanceTurn();
       } else {
-        nextSongBtn.textContent = 'Next Song';
+        startNewRound();
+      }
+    };
+
+    // Advance turn to next player / round
+    function advanceTurn() {
+      players[currentPlayerIndex].score += score;
+      score = 0;
+      updateScoreDisplay();
+
+      currentPlayerIndex++;
+      if (currentPlayerIndex >= players.length) {
+        currentPlayerIndex = 0;
+        currentRound++;
+      }
+
+      if (currentRound > totalRounds) {
+        endMultiplayerGame();
+      } else {
+        startNewTurn();
       }
     }
 
-    function enableInputs(enabled) {
-      document.getElementById('guessSongInput').disabled = !enabled;
-      document.getElementById('guessArtistInput').disabled = !enabled;
+    function updateCurrentPlayerDisplay() {
+      if (mode === 'multiplayer') {
+        currentPlayerDisplay.textContent = `Current Player: ${players[currentPlayerIndex].name} | Score: ${players[currentPlayerIndex].score}`;
+      } else {
+        currentPlayerDisplay.textContent = '';
+      }
     }
 
-    // === Single Player Modes ===
+    function updateScoreDisplay() {
+      if (mode === 'multiplayer') {
+        // Show current player's score in scoreDisplay
+        document.getElementById('scoreDisplay').textContent = players[currentPlayerIndex]?.score?.toFixed(1) || '0';
+      } else {
+        document.getElementById('scoreDisplay').textContent = Math.round(score * 10) / 10;
+      }
+    }
+
+    // Modified startNewRound to handle non-multiplayer modes
     function startNewRound() {
       if (mode === 'challenge' && songsPlayed >= challengeMaxSongs) {
         endGame();
@@ -529,264 +615,289 @@
         messageP.textContent = '';
       }
       document.getElementById('playAgainBtn').style.display = 'none';
+      nextSongBtn.style.display = 'none';
+      updateScoreDisplay();
+      currentPlayerDisplay.textContent = '';
     }
 
-    // === Multiplayer Mode ===
-    function startMultiplayerGame() {
-      score = 0;
-      songsPlayed = 0;
-      usedSongs.clear();
-      currentRound = 1;
-      currentPlayerIndex = 0;
-      players.forEach(p => p.score = 0);
-      gameControls.style.display = 'block';
-      resetButtons(true);
-      enableInputs(true);
-      messageP.textContent = `Round 1 / ${totalRounds} — ${players[0].name}'s turn`;
-      updateCurrentPlayerDisplay();
-      startNewTurn();
-    }
-
-    function startNewTurn() {
-      if (currentRound > totalRounds) {
-        endMultiplayerGame();
+    // Play hint stays the same for multiplayer
+    function playHint(durationOverride = null) {
+      if (!currentSong || !currentSong.preview_url) {
+        alert('No preview available.');
         return;
       }
 
-      roundOver = false;
-      resetButtons(true);
-      enableInputs(true);
-
-      clearTimeout(snippetTimeout);
       if (audio) {
         audio.pause();
         audio = null;
       }
 
-      currentHintIndex = 0;
-      document.getElementById('answer').style.display = 'none';
-      document.getElementById('answer').textContent = '';
-      document.getElementById('feedback').textContent = '';
-      document.getElementById('hintDuration').textContent = '';
-      document.getElementById('guessSongInput').value = '';
-      document.getElementById('guessArtistInput').value = '';
-      hideAutocomplete('songAutocomplete');
-      hideAutocomplete('artistAutocomplete');
+      const duration = durationOverride || hintStages[currentHintIndex];
+      document.getElementById('hintDuration').textContent = `🎧 Playing hint: ${duration} second${duration > 1 ? 's' : ''}`;
 
-      let attempts = 0;
-      do {
-        currentSong = songs[Math.floor(Math.random() * songs.length)];
-        attempts++;
-      } while (usedSongs.has(currentSong.name + currentSong.artist) && attempts < 20);
+      audio = new Audio(currentSong.preview_url);
+      audio.currentTime = 0;
 
-      usedSongs.add(currentSong.name + currentSong.artist);
-
-      messageP.textContent = `Round ${currentRound} / ${totalRounds} — ${players[currentPlayerIndex].name}'s turn`;
-
-      updateCurrentPlayerDisplay();
-      playHint();
-    }
-
-    nextSongBtn.onclick = () => {
-      if (mode === 'multiplayer') {
-        currentPlayerIndex++;
-        if (currentPlayerIndex >= players.length) {
-          currentPlayerIndex = 0;
-          currentRound++;
+      audio.play().then(() => {
+        if (!durationOverride) {
+          snippetTimeout = setTimeout(() => {
+            audio.pause();
+          }, duration * 1000);
+        } else {
+          snippetTimeout = null;
         }
-
-        if (currentRound > totalRounds) {
-          endMultiplayerGame();
-          return;
-        }
-
-        startNewTurn();
-      } else {
-        startNewRound();
-      }
-    };
-
-    // === Gameplay ===
-    function playHint() {
-      if (!currentSong) {
-        alert('No song selected!');
-        return;
-      }
-      if (audio) {
-        audio.pause();
-      }
-
-      const duration = hintStages[currentHintIndex];
-      const snippetUrl = `${currentSong.preview_url}#t=0,${duration}`;
-
-      audio = new Audio(snippetUrl);
-      audio.play();
-
-      document.getElementById('hintDuration').textContent = `Playing first ${duration} seconds`;
-
-      if (snippetTimeout) clearTimeout(snippetTimeout);
-      snippetTimeout = setTimeout(() => {
-        if (audio) audio.pause();
-      }, duration * 1000);
+      }).catch(err => {
+        console.error('Audio playback error:', err);
+      });
     }
 
     function nextHint() {
       if (roundOver) return;
-
-      if (currentHintIndex < hintStages.length - 1) {
-        currentHintIndex++;
-        playHint();
+      currentHintIndex++;
+      if (currentHintIndex >= hintStages.length) {
+        revealAnswer(true);
       } else {
-        document.getElementById('feedback').textContent = "No more hints! Try your guess or give up.";
+        playHint();
       }
-    }
-
-    function revealAnswer() {
-      if (!currentSong) return;
-      roundOver = true;
-      resetButtons(false);
-      enableInputs(false);
-
-      document.getElementById('answer').style.display = 'block';
-      document.getElementById('answer').textContent = `Answer: "${currentSong.name}" by ${currentSong.artist}`;
-
-      nextSongBtn.style.display = 'inline-block';
     }
 
     function submitGuess() {
       if (roundOver) return;
 
-      const songGuess = document.getElementById('guessSongInput').value.trim().toLowerCase();
-      const artistGuess = document.getElementById('guessArtistInput').value.trim().toLowerCase();
+      const guessSong = document.getElementById('guessSongInput').value.trim().toLowerCase();
+      const guessArtist = document.getElementById('guessArtistInput').value.trim().toLowerCase();
+      const songName = currentSong.name.toLowerCase();
+      const artistName = currentSong.artist.toLowerCase();
 
-      if (!songGuess && !artistGuess) {
-        alert('Please enter a guess.');
+      if (!guessSong && !guessArtist) {
+        alert('Please enter a guess for the song or the artist.');
         return;
       }
 
-      // Check if correct (simple check contains, case-insensitive)
-      const correctSong = currentSong.name.toLowerCase();
-      const correctArtist = currentSong.artist.toLowerCase();
+      const matchSong = guessSong && (songName.includes(guessSong) || guessSong.includes(songName));
+      const matchArtist = guessArtist && (artistName.includes(guessArtist) || guessArtist.includes(artistName));
+      const matchBoth = matchSong && matchArtist;
 
-      const songMatch = songGuess && correctSong.includes(songGuess);
-      const artistMatch = artistGuess && correctArtist.includes(artistGuess);
+      const feedbackEl = document.getElementById('feedback');
+      const points = scoring[currentHintIndex] || 0;
 
-      if ((songGuess && songMatch) || (artistGuess && artistMatch)) {
+      if (matchBoth) {
+        feedbackEl.textContent = `✅ Correct! You guessed both song and artist. +${points} pts`;
+        score = points;
+        updatePlayerScore(points);
+        showAnswer();
+        playHint(30);
         roundOver = true;
         resetButtons(false);
-        enableInputs(false);
-        document.getElementById('feedback').textContent = 'Correct! 🎉';
-
-        // Update score
-        let gainedPoints = 0;
-        if (mode === 'challenge') {
-          gainedPoints = scoring[currentHintIndex] || 1;
-          score += gainedPoints;
-          updateScore(score);
-          if (score >= challengeGoalPoints || songsPlayed >= challengeMaxSongs) {
-            endGame();
-          }
-        } else if (mode === 'multiplayer') {
-          gainedPoints = scoring[currentHintIndex] || 1;
-          players[currentPlayerIndex].score += gainedPoints;
-          updateScoreDisplay();
-        } else {
-          gainedPoints = scoring[currentHintIndex] || 1;
-          score += gainedPoints;
-          updateScore(score);
-        }
-
-        document.getElementById('answer').style.display = 'block';
-        document.getElementById('answer').textContent = `Answer: "${currentSong.name}" by ${currentSong.artist}`;
         nextSongBtn.style.display = 'inline-block';
-        nextSongBtn.textContent = mode === 'multiplayer' ? 'Next Player' : 'Next Song';
-
-        if (audio) {
-          audio.pause();
-          audio = null;
-        }
+      } else if (matchSong || matchArtist) {
+        const partialPoints = points / 2;
+        feedbackEl.textContent = `🟡 Partial match! +${partialPoints} pts`;
+        score = partialPoints;
+        updatePlayerScore(partialPoints);
+        showAnswer();
+        playHint(30);
+        roundOver = true;
+        resetButtons(false);
+        nextSongBtn.style.display = 'inline-block';
       } else {
-        document.getElementById('feedback').textContent = 'Wrong guess, try again or get a hint.';
+        feedbackEl.textContent = `❌ Nope! Try again or use a hint.`;
       }
     }
 
-    function updateScore(newScore) {
-      document.getElementById('scoreDisplay').textContent = newScore;
-    }
-
-    function updateScoreDisplay() {
+    // Update current player's score in multiplayer or overall score in single
+    function updatePlayerScore(points) {
       if (mode === 'multiplayer') {
-        // Show current player's score in the current player display (see below)
-        updateCurrentPlayerDisplay();
+        players[currentPlayerIndex].score += points;
+        updateScoreDisplay();
       } else {
-        updateScore(score);
+        score += points;
+        updateScoreDisplay();
       }
     }
 
-    function updateCurrentPlayerDisplay() {
-      if (mode === 'multiplayer') {
-        const p = players[currentPlayerIndex];
-        currentPlayerDisplay.textContent = `Current Player: ${p.name} | Round ${currentRound} / ${totalRounds} | Score: ${Math.round(p.score * 10) / 10}`;
-      } else {
-        currentPlayerDisplay.textContent = '';
-      }
+    function showAnswer() {
+      const answerEl = document.getElementById('answer');
+      answerEl.textContent = `🎵 ${currentSong.name} — ${currentSong.artist}`;
+      answerEl.style.display = 'block';
+      document.getElementById('hintDuration').textContent = '';
     }
 
-    function endMultiplayerGame() {
-      gameControls.style.display = 'none';
-      document.getElementById('playAgainBtn').style.display = 'inline-block';
-      messageP.textContent = `Game over! Here are the final scores:`;
-      showScoreboard();
+    function revealAnswer(playFull = true) {
+      if (roundOver) return;
+      showAnswer();
+      roundOver = true;
+      resetButtons(false);
+      nextSongBtn.style.display = 'inline-block';
+
+      if (playFull && currentSong.preview_url) {
+        if (audio) audio.pause();
+        audio = new Audio(currentSong.preview_url);
+        audio.play();
+      }
     }
 
     function endGame() {
-      gameControls.style.display = 'none';
-      document.getElementById('playAgainBtn').style.display = 'inline-block';
-      messageP.textContent = `Game over! Your final score: ${score}`;
-    }
+      resetButtons(false);
+      enableInputs(false);
+      nextSongBtn.style.display = 'none';
 
-    function showScoreboard() {
-      const scoreboardDiv = document.getElementById('scoreboard');
-      scoreboardDiv.style.display = 'block';
-      players.sort((a, b) => b.score - a.score);
-
-      let html = '<h2>Multiplayer Scores</h2><table><thead><tr><th>Place</th><th>Player</th><th>Score</th></tr></thead><tbody>';
-      players.forEach((p, idx) => {
-        const place = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : (idx + 1);
-        html += `<tr><td>${place}</td><td>${p.name}</td><td>${Math.round(p.score * 10) / 10}</td></tr>`;
-      });
-      html += '</tbody></table>';
-      scoreboardDiv.innerHTML = html;
-    }
-
-    function playAgain() {
-      resetGameState();
-      if (mode === 'multiplayer') {
-        if (players.length === 0) {
-          multiplayerSetup.style.display = 'block';
-          gameControls.style.display = 'none';
-          messageP.textContent = 'Load a playlist and enter player names to start multiplayer game.';
-          document.getElementById('scoreboard').style.display = 'none';
-        } else {
-          startMultiplayerGame();
-          document.getElementById('scoreboard').style.display = 'none';
-        }
+      if (score >= challengeGoalPoints) {
+        messageP.textContent = `🎉 Congratulations! You scored ${Math.round(score)} points and won the challenge!`;
       } else {
-        startNewRound();
-        gameControls.style.display = 'block';
-        document.getElementById('scoreboard').style.display = 'none';
-        document.getElementById('playAgainBtn').style.display = 'none';
+        messageP.textContent = `Game Over! You scored ${Math.round(score)} points. Try again to reach ${challengeGoalPoints} points.`;
+      }
+
+      if (audio) {
+        audio.pause();
+        audio = null;
+      }
+      if (mode === 'challenge') {
+        document.getElementById('playAgainBtn').style.display = 'inline-block';
       }
     }
 
-    // Autocomplete feature (basic)
-    function hideAutocomplete(id) {
-      document.getElementById(id).style.display = 'none';
-      document.getElementById(id).innerHTML = '';
+    // Show multiplayer scoreboard at end
+    function endMultiplayerGame() {
+      resetButtons(false);
+      enableInputs(false);
+      nextSongBtn.style.display = 'none';
+      currentPlayerDisplay.textContent = '';
+      messageP.textContent = 'Game Over! Final Scores:';
+
+      if (audio) {
+        audio.pause();
+        audio = null;
+      }
+
+      // Sort players by score descending
+      const sortedPlayers = [...players].sort((a, b) => b.score - a.score);
+
+      // Build scoreboard HTML
+      const scoreboard = document.getElementById('scoreboard');
+      scoreboard.innerHTML = '<h3>Multiplayer Final Scores</h3><ol>';
+      sortedPlayers.forEach(p => {
+        scoreboard.innerHTML += `<li>${p.name}: ${p.score.toFixed(1)} pts</li>`;
+      });
+      scoreboard.innerHTML += '</ol>';
+
+      scoreboard.style.display = 'block';
+      document.getElementById('playAgainBtn').style.display = 'inline-block';
     }
 
-    // For brevity, autocomplete is disabled here (can be added later if needed)
+    function playAgain() {
+      usedSongs.clear();
+      score = 0;
+      songsPlayed = 0;
+      currentHintIndex = 0;
+      roundOver = false;
+      currentSong = null;
+      currentPlayerIndex = 0;
+      currentRound = 1;
+      players = [];
+      messageP.textContent = '';
+      document.getElementById('feedback').textContent = '';
+      document.getElementById('answer').style.display = 'none';
+      document.getElementById('scoreboard').style.display = 'none';
+      document.getElementById('playAgainBtn').style.display = 'none';
+      enableInputs(true);
+      resetButtons(true);
+      updateScoreDisplay();
+      currentPlayerDisplay.textContent = '';
+      if (mode === 'multiplayer') {
+        multiplayerSetup.style.display = 'block';
+        gameControls.style.display = 'none';
+      } else {
+        multiplayerSetup.style.display = 'none';
+        gameControls.style.display = 'block';
+        startNewRound();
+      }
+    }
 
+    function resetButtons(active) {
+      document.getElementById('playBtn').disabled = !active;
+      document.getElementById('nextHintBtn').disabled = !active;
+      document.getElementById('giveUpBtn').disabled = !active;
+      document.getElementById('submitGuessBtn').disabled = !active;
+      nextSongBtn.style.display = active ? 'none' : 'inline-block';
+    }
+
+    function enableInputs(enabled) {
+      document.getElementById('guessSongInput').disabled = !enabled;
+      document.getElementById('guessArtistInput').disabled = !enabled;
+    }
+
+    function extractPlaylistId(url) {
+      const match = url.match(/playlist\/([a-zA-Z0-9]+)(\?.*)?$/);
+      return match ? match[1] : null;
+    }
+
+    // Autocomplete functions unchanged
+    function showAutocomplete(listId, matches, inputElement) {
+      const list = document.getElementById(listId);
+      list.innerHTML = '';
+      if (matches.length === 0) {
+        list.style.display = 'none';
+        return;
+      }
+      matches.forEach(item => {
+        const div = document.createElement('div');
+        div.textContent = item;
+        div.className = 'autocomplete-item';
+        div.onclick = () => {
+          inputElement.value = item;
+          hideAutocomplete(listId);
+          inputElement.focus();
+        };
+        list.appendChild(div);
+      });
+      list.style.display = 'block';
+    }
+
+    function hideAutocomplete(listId) {
+      const list = document.getElementById(listId);
+      list.style.display = 'none';
+      list.innerHTML = '';
+    }
+
+    document.getElementById('guessSongInput').addEventListener('input', function () {
+      const val = this.value.trim().toLowerCase();
+      if (!val) {
+        hideAutocomplete('songAutocomplete');
+        return;
+      }
+      const songMatches = [...new Set(songs
+        .map(s => s.name)
+        .filter(name => name.toLowerCase().includes(val))
+        .slice(0, 10)
+      )];
+      showAutocomplete('songAutocomplete', songMatches, this);
+    });
+
+    document.getElementById('guessArtistInput').addEventListener('input', function () {
+      const val = this.value.trim().toLowerCase();
+      if (!val) {
+        hideAutocomplete('artistAutocomplete');
+        return;
+      }
+      const artistSet = new Set();
+      songs.forEach(s => {
+        s.artist.split(',').forEach(a => artistSet.add(a.trim()));
+      });
+      const artistMatches = [...artistSet]
+        .filter(name => name.toLowerCase().includes(val))
+        .slice(0, 10);
+      showAutocomplete('artistAutocomplete', artistMatches, this);
+    });
+
+    document.addEventListener('click', function (e) {
+      if (!document.getElementById('guessSongInput').contains(e.target)) {
+        hideAutocomplete('songAutocomplete');
+      }
+      if (!document.getElementById('guessArtistInput').contains(e.target)) {
+        hideAutocomplete('artistAutocomplete');
+      }
+    });
   </script>
 </body>
 
