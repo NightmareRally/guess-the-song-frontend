@@ -383,61 +383,63 @@
     }
 
     // Load playlist function updated to show multiplayer setup if needed
-    async function loadPlaylist() {
-      const playlistUrl = document.getElementById('playlistUrl').value.trim();
-      const playlistId = extractPlaylistId(playlistUrl);
+async function loadPlaylist() {
+  const playlistUrl = document.getElementById('playlistUrl').value.trim();
+  const playlistId = extractPlaylistId(playlistUrl);
 
-      if (!playlistId) {
-        alert('Please enter a valid Spotify playlist URL.');
-        return;
-      }
+  if (!playlistId) {
+    alert('Please enter a valid Spotify playlist URL.');
+    return;
+  }
 
-      loader.style.display = 'block';
+  loader.style.display = 'block';
 
-      try {
-        const response = await fetch(`${backendUrl}/playlist/${playlistId}`);
-        if (!response.ok) {
-          alert('Failed to load playlist.');
-          loader.style.display = 'none';
-          return;
-        }
-
-        const data = await response.json();
-        songs = data.filter(song => song.preview_url);
-        if (songs.length === 0) {
-          alert('No playable songs found.');
-          loader.style.display = 'none';
-          return;
-        }
-
-        songsPlayed = 0;
-        score = 0;
-        updateScore(0);
-        resetButtons(true);
-        enableInputs(true);
-        messageP.textContent = '';
-
-        if (mode === 'multiplayer') {
-          multiplayerSetup.style.display = 'block';
-          gameControls.style.display = 'none';
-          document.getElementById('playAgainBtn').style.display = 'none';
-          document.getElementById('scoreboard').style.display = 'none';
-          messageP.textContent = 'Playlist loaded! Enter player names and start multiplayer game.';
-        } else {
-          multiplayerSetup.style.display = 'none';
-          gameControls.style.display = 'block';
-          document.getElementById('playAgainBtn').style.display = 'none';
-          document.getElementById('scoreboard').style.display = 'none';
-          startNewRound();
-        }
-      } catch (error) {
-        console.error('Error loading playlist:', error);
-        alert('Something went wrong.');
-      } finally {
-        loader.style.display = 'none';
-      }
+  try {
+    const response = await fetch(`${backendUrl}/playlist/${playlistId}`);
+    if (!response.ok) {
+      console.error('Response status:', response.status, response.statusText);
+      alert(`Failed to load playlist: ${response.status} ${response.statusText}`);
+      loader.style.display = 'none';
+      return;
     }
 
+    const data = await response.json();
+    console.log('Playlist data received:', data);
+
+    songs = data.filter(song => song.preview_url);
+    if (songs.length === 0) {
+      alert('No playable songs found.');
+      loader.style.display = 'none';
+      return;
+    }
+
+    songsPlayed = 0;
+    score = 0;
+    updateScore(0);
+    resetButtons(true);
+    enableInputs(true);
+    messageP.textContent = '';
+
+    if (mode === 'multiplayer') {
+      multiplayerSetup.style.display = 'block';
+      gameControls.style.display = 'none';
+      document.getElementById('playAgainBtn').style.display = 'none';
+      document.getElementById('scoreboard').style.display = 'none';
+      messageP.textContent = 'Playlist loaded! Enter player names and start multiplayer game.';
+    } else {
+      multiplayerSetup.style.display = 'none';
+      gameControls.style.display = 'block';
+      document.getElementById('playAgainBtn').style.display = 'none';
+      document.getElementById('scoreboard').style.display = 'none';
+      startNewRound();
+    }
+  } catch (error) {
+    console.error('Error loading playlist:', error);
+    alert('Something went wrong. See console for details.');
+  } finally {
+    loader.style.display = 'none';
+  }
+}
     // Multiplayer game start
     function startMultiplayerGame() {
       // Read player names and validate
