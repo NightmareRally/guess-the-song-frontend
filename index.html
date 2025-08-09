@@ -3,8 +3,10 @@
 
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Guess the Song Game</title>
   <style>
+    /* Base Styles */
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
       background-color: #121212;
@@ -13,6 +15,8 @@
       max-width: 600px;
       margin: auto;
       user-select: none;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
 
     h1 {
@@ -22,6 +26,7 @@
       letter-spacing: 1.5px;
       color: #b892ff;
       text-shadow: 0 0 10px #b892ff66;
+      font-size: 2.25rem;
     }
 
     input[type="text"],
@@ -58,6 +63,7 @@
       transition: background-color 0.3s ease, box-shadow 0.3s ease;
       user-select: none;
       box-shadow: 0 0 5px #6f47ffcc;
+      flex-shrink: 0;
     }
 
     button:hover {
@@ -72,6 +78,9 @@
       padding: 25px 20px 30px 20px;
       background: #1a1a2e;
       box-shadow: 0 0 15px #6f47ff44;
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
     }
 
     #scoreDisplay {
@@ -103,6 +112,7 @@
       z-index: 1000;
       border-radius: 8px;
       user-select: none;
+      box-sizing: border-box;
     }
 
     .autocomplete-item {
@@ -120,6 +130,7 @@
     .input-container {
       position: relative;
       margin-bottom: 20px;
+      width: 100%;
     }
 
     #loader {
@@ -135,6 +146,54 @@
 
     #continueBtn {
       display: none;
+    }
+
+    /* Flex layout for buttons row */
+    #buttonRow {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    #buttonRow > button {
+      flex: 1 1 120px;
+      min-width: 120px;
+    }
+
+    /* Smaller fonts and spacing on small devices */
+    @media (max-width: 400px) {
+      body {
+        padding: 15px 12px;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+        margin-bottom: 20px;
+      }
+
+      input[type="text"],
+      select {
+        font-size: 14px;
+        padding: 10px 12px;
+      }
+
+      button {
+        font-size: 14px;
+        padding: 10px 14px;
+        min-width: 100px;
+      }
+
+      #scoreDisplay {
+        font-size: 18px;
+      }
+    }
+
+    /* Adjust autocomplete z-index on mobile to ensure visibility */
+    @media (max-width: 600px) {
+      .autocomplete-list {
+        font-size: 14px;
+      }
     }
 
     @keyframes spin {
@@ -164,10 +223,12 @@
   <div id="gameControls" style="display:none;">
     <p><strong>Score:</strong> <span id="scoreDisplay">0</span></p>
 
-    <button id="playBtn" onclick="playHint()">Play</button>
-    <button id="nextHintBtn" onclick="nextHint()">Next Hint</button>
-    <button id="giveUpBtn" onclick="revealAnswer()">I Give Up</button>
-    <button id="nextSongBtn" onclick="startNewRound()" style="display:none;">Next Song</button>
+    <div id="buttonRow">
+      <button id="playBtn" onclick="playHint()">Play</button>
+      <button id="nextHintBtn" onclick="nextHint()">Next Hint</button>
+      <button id="giveUpBtn" onclick="revealAnswer()">I Give Up</button>
+      <button id="nextSongBtn" onclick="startNewRound()" style="display:none;">Next Song</button>
+    </div>
 
     <div style="margin-top: 20px;">
       <div class="input-container">
@@ -189,6 +250,7 @@
   <button id="playAgainBtn" onclick="playAgain()" style="display:none; margin-top: 30px;">Play Again</button>
 
   <script>
+    // Your existing JavaScript unchanged (for brevity here)
     const backendUrl = 'https://guess-the-song-backend.onrender.com';
     let songs = [];
     let usedSongs = new Set();
@@ -228,7 +290,6 @@
         return;
       }
 
-      // Show loader while loading
       loader.style.display = 'block';
 
       try {
@@ -261,7 +322,6 @@
         console.error('Error loading playlist:', error);
         alert('Something went wrong.');
       } finally {
-        // Hide loader after attempt completes
         loader.style.display = 'none';
       }
     }
@@ -479,6 +539,7 @@
       });
       list.style.display = 'block';
     }
+
     function hideAutocomplete(listId) {
       const list = document.getElementById(listId);
       list.style.display = 'none';
@@ -524,7 +585,6 @@
       }
     });
 
-    // NEW: switch mode dynamically without reloading playlist
     document.getElementById('modeSelect').addEventListener('change', () => {
       const newMode = document.getElementById('modeSelect').value;
       if (newMode !== mode) {
