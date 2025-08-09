@@ -83,7 +83,8 @@
       gap: 15px;
     }
 
-    #scoreDisplay {
+    #scoreDisplay,
+    #scoreDisplay2 {
       font-size: 20px;
       color: #b892ff;
       font-weight: 700;
@@ -95,7 +96,8 @@
     #answer,
     #feedback,
     #hintDuration,
-    #message {
+    #message,
+    #currentPlayer {
       margin-top: 12px;
       font-weight: 600;
       color: #ddd;
@@ -211,6 +213,7 @@
   <select id="modeSelect">
     <option value="infinite">Infinite Mode</option>
     <option value="challenge">Challenge Mode (5 songs, 25 points)</option>
+    <option value="twoPlayer">Two Player Mode (5 songs each)</option>
   </select>
 
   <input id="playlistUrl" type="text" placeholder="Paste Spotify Playlist URL here" />
@@ -219,9 +222,11 @@
   <div id="loader"></div>
 
   <p id="message"></p>
+  <p id="currentPlayer" style="font-weight: 700; color: #b892ff;"></p>
 
   <div id="gameControls" style="display:none;">
-    <p><strong>Score:</strong> <span id="scoreDisplay">0</span></p>
+    <p><strong>Player 1 Score:</strong> <span id="scoreDisplay">0</span></p>
+    <p><strong>Player 2 Score:</strong> <span id="scoreDisplay2">0</span></p>
 
     <div id="buttonRow">
       <button id="playBtn" onclick="playHint()">Play</button>
@@ -250,7 +255,6 @@
   <button id="playAgainBtn" onclick="playAgain()" style="display:none; margin-top: 30px;">Play Again</button>
 
   <script>
-    // Your existing JavaScript unchanged (for brevity here)
     const backendUrl = 'https://guess-the-song-backend.onrender.com';
     let songs = [];
     let usedSongs = new Set();
@@ -260,20 +264,41 @@
     let scoring = [10, 8, 6, 4, 2, 1];
     let currentHintIndex = 0;
     let snippetTimeout = null;
-    let score = 0;
-    let roundOver = false;
-
     let mode = 'infinite';
+
+    // For 1-player modes:
+    let score = 0;
+    let songsPlayed = 0;
     const challengeMaxSongs = 5;
     const challengeGoalPoints = 25;
-    let songsPlayed = 0;
+
+    // For 2-player mode:
+    let player1Score = 0;
+    let player2Score = 0;
+    let player1SongsPlayed = 0;
+    let player2SongsPlayed = 0;
+    let currentPlayer = 1; // 1 or 2
+    const maxSongsPerPlayer = 5;
 
     const messageP = document.getElementById('message');
     const loader = document.getElementById('loader');
+    const currentPlayerP = document.getElementById('currentPlayer');
+    const scoreDisplay1 = document.getElementById('scoreDisplay');
+    const scoreDisplay2 = document.getElementById('scoreDisplay2');
 
     function updateScore(points) {
-      score += points;
-      document.getElementById('scoreDisplay').textContent = Math.round(score * 10) / 10;
+      if (mode === 'twoPlayer') {
+        if (currentPlayer === 1) {
+          player1Score += points;
+          scoreDisplay1.textContent = Math.round(player1Score * 10) / 10;
+        } else {
+          player2Score += points;
+          scoreDisplay2.textContent = Math.round(player2Score * 10) / 10;
+        }
+      } else {
+        score += points;
+        document.getElementById('scoreDisplay').textContent = Math.round(score * 10) / 10;
+      }
     }
 
     function extractPlaylistId(url) {
@@ -309,10 +334,9 @@
         }
 
         mode = document.getElementById('modeSelect').value;
-        songsPlayed = 0;
 
-        score = 0;
-        updateScore(0);
+        resetGameState();
+
         document.getElementById('gameControls').style.display = 'block';
         resetButtons(true);
         document.getElementById('playAgainBtn').style.display = 'none';
@@ -324,6 +348,26 @@
       } finally {
         loader.style.display = 'none';
       }
+    }
+
+    function resetGameState() {
+      // Reset scores and counters for all modes
+      score = 0;
+      songsPlayed = 0;
+
+      player1Score = 0;
+      player2Score = 0;
+      player1SongsPlayed = 0;
+      player2SongsPlayed = 0;
+      currentPlayer = 1;
+
+      scoreDisplay1.textContent = '0';
+      scoreDisplay2.textContent = '0';
+
+      messageP.textContent = '';
+      currentPlayerP.textContent = '';
+
+      usedSongs.clear();
     }
 
     function resetButtons(active) {
@@ -340,7 +384,13 @@
     }
 
     function startNewRound() {
-      if (mode === 'challenge' && songsPlayed >= challengeMaxSongs) {
+      // For two player mode, check if both players have played 5 songs each
+      if (mode === 'twoPlayer') {
+        if (player1SongsPlayed >= maxSongsPerPlayer && player2SongsPlayed >= maxSongsPerPlayer) {
+          endTwoPlayerGame();
+          return;
+        }
+      } else if (mode === 'challenge' && songsPlayed >= challengeMaxSongs) {
         endGame();
         return;
       }
@@ -365,14 +415,33 @@
       hideAutocomplete('songAutocomplete');
       hideAutocomplete('artistAutocomplete');
 
-      let attempts = 0;
-      do {
-        currentSong = songs[Math.floor(Math.random() * songs.length)];
-        attempts++;
-      } while (usedSongs.has(currentSong.name + currentSong.artist) && attempts < 10);
+      // Choose current player for two player mode
+      if (mode === 'twoPlayer') {
+        currentPlayerP.textContent = `Current Player: Player ${currentPlayer}`;
+        // Select a song not used yet
+        let attempts = 0;
+        do {
+          currentSong = songs[Math.floor(Math.random() * songs.length)];
+          attempts++;
+        } while (usedSongs.has(currentSong.name + currentSong.artist) && attempts < 20);
 
-      usedSongs.add(currentSong.name + currentSong.artist);
-      songsPlayed++;
+        usedSongs.add(currentSong.name + currentSong.artist);
+
+        // Increment current player's songs played count
+        if (currentPlayer === 1) player1SongsPlayed++;
+        else player2SongsPlayed++;
+
+      } else {
+        currentPlayerP.textContent = '';
+        let attempts = 0;
+        do {
+          currentSong = songs[Math.floor(Math.random() * songs.length)];
+          attempts++;
+        } while (usedSongs.has(currentSong.name + currentSong.artist) && attempts < 10);
+
+        usedSongs.add(currentSong.name + currentSong.artist);
+        songsPlayed++;
+      }
 
       if (mode === 'challenge') {
         messageP.textContent = `Challenge Mode: Song ${songsPlayed} of ${challengeMaxSongs}`;
@@ -505,15 +574,32 @@
       }
     }
 
+    function endTwoPlayerGame() {
+      resetButtons(false);
+      enableInputs(false);
+      document.getElementById('nextSongBtn').style.display = 'none';
+      currentPlayerP.textContent = '';
+
+      let resultMsg = '';
+      if (player1Score > player2Score) {
+        resultMsg = `🏆 Player 1 wins with ${Math.round(player1Score)} points! Player 2 scored ${Math.round(player2Score)} points.`;
+      } else if (player2Score > player1Score) {
+        resultMsg = `🏆 Player 2 wins with ${Math.round(player2Score)} points! Player 1 scored ${Math.round(player1Score)} points.`;
+      } else {
+        resultMsg = `🤝 It's a tie! Both players scored ${Math.round(player1Score)} points.`;
+      }
+
+      messageP.textContent = `Game Over! ${resultMsg}`;
+
+      if (audio) {
+        audio.pause();
+        audio = null;
+      }
+      document.getElementById('playAgainBtn').style.display = 'inline-block';
+    }
+
     function playAgain() {
-      usedSongs.clear();
-      score = 0;
-      songsPlayed = 0;
-      updateScore(0);
-      messageP.textContent = '';
-      document.getElementById('feedback').textContent = '';
-      document.getElementById('answer').style.display = 'none';
-      document.getElementById('playAgainBtn').style.display = 'none';
+      resetGameState();
       enableInputs(true);
       resetButtons(true);
       startNewRound();
@@ -589,13 +675,7 @@
       const newMode = document.getElementById('modeSelect').value;
       if (newMode !== mode) {
         mode = newMode;
-        songsPlayed = 0;
-        score = 0;
-        updateScore(0);
-        usedSongs.clear();
-        messageP.textContent = '';
-        document.getElementById('feedback').textContent = '';
-        document.getElementById('answer').style.display = 'none';
+        resetGameState();
         resetButtons(true);
         enableInputs(true);
         startNewRound();
