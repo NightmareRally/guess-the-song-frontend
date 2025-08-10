@@ -202,112 +202,139 @@
       }
     }
 
-    /* --- Welcome Popup Styles --- */
-    #welcomePopup {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background-color: rgba(18, 18, 18, 0.95);
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      z-index: 2000;
-      padding: 30px 20px;
-      box-sizing: border-box;
-      user-select: text;
-    }
+/* --- Welcome Popup Styles --- */
+#welcomePopup {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(18, 18, 18, 0.95);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  padding: 20px 15px;
+  box-sizing: border-box;
+  user-select: text;
+}
 
-    #welcomePopupContent {
-      background: #1a1a2e;
-      border: 1.5px solid #6f47ff;
-      border-radius: 16px;
-      padding: 30px 25px;
-      max-width: 500px;
-      color: #ddd;
-      box-shadow: 0 0 25px #6f47ffbb;
-      text-align: center;
-    }
+#welcomePopupContent {
+  background: #1a1a2e;
+  border: 1.5px solid #6f47ff;
+  border-radius: 16px;
+  padding: 25px 20px 40px 20px; /* extra bottom padding for the thanks text */
+  max-width: 480px;
+  width: 100%;
+  color: #ddd;
+  box-shadow: 0 0 25px #6f47ffbb;
+  text-align: center;
+  position: relative;
+}
 
-    #welcomePopupContent h2 {
-      margin-top: 0;
-      color: #b892ff;
-      font-size: 2rem;
-      text-shadow: 0 0 10px #b892ffaa;
-      font-weight: 700;
-      margin-bottom: 20px;
-    }
+#welcomePopupContent h2 {
+  margin-top: 0;
+  color: #b892ff;
+  font-size: 2rem;
+  text-shadow: 0 0 10px #b892ffaa;
+  font-weight: 700;
+  margin-bottom: 20px;
+}
 
-    #welcomePopupContent p {
-      margin: 8px 0;
-      font-weight: 600;
-      line-height: 1.4;
-    }
+#welcomePopupContent p {
+  margin: 8px 0;
+  font-weight: 600;
+  line-height: 1.4;
+}
 
-    #welcomePopupContent ul {
-      text-align: left;
-      margin: 15px 0 25px 0;
-      padding-left: 20px;
-      font-weight: 600;
-      color: #ccc;
-    }
+#welcomePopupContent ul {
+  text-align: left;
+  margin: 15px 0 30px 0;
+  padding-left: 20px;
+  font-weight: 600;
+  color: #ccc;
+}
 
-    #welcomePopupContent ul li {
-      margin-bottom: 10px;
-    }
+#welcomePopupContent ul li {
+  margin-bottom: 10px;
+}
 
-    #welcomePlayBtn {
-      background-color: #6f47ff;
-      color: white;
-      border: none;
-      border-radius: 8px;
-      padding: 12px 24px;
-      font-size: 18px;
-      font-weight: 700;
-      cursor: pointer;
-      box-shadow: 0 0 10px #6f47ffcc;
-      transition: background-color 0.3s ease, box-shadow 0.3s ease;
-      user-select: none;
-    }
+#thanksText {
+  position: absolute;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-weight: 600;
+  color: #b892ffcc;
+  font-size: 1rem;
+  user-select: none;
+  white-space: nowrap;
+}
 
-    #welcomePlayBtn:hover {
-      background-color: #b892ff;
-      box-shadow: 0 0 20px #b892ffdd;
-    }
+#welcomePlayBtn {
+  background-color: #6f47ff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 24px;
+  font-size: 18px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 0 10px #6f47ffcc;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  user-select: none;
+  margin-top: 10px;
+  width: 100%;
+  max-width: 260px;
+}
 
-    @media (max-width: 400px) {
-      #welcomePopupContent {
-        padding: 20px 15px;
-      }
-      #welcomePopupContent h2 {
-        font-size: 1.5rem;
-      }
-      #welcomePlayBtn {
-        font-size: 16px;
-        padding: 10px 20px;
-      }
-    }
+#welcomePlayBtn:hover {
+  background-color: #b892ff;
+  box-shadow: 0 0 20px #b892ffdd;
+}
+
+/* Mobile tweaks */
+@media (max-width: 480px) {
+  #welcomePopupContent {
+    max-width: 90vw;
+    padding: 20px 15px 50px 15px; /* more bottom padding for thanks text */
+  }
+  #welcomePopupContent h2 {
+    font-size: 1.5rem;
+    margin-bottom: 16px;
+  }
+  #welcomePlayBtn {
+    font-size: 16px;
+    padding: 12px;
+    max-width: 100%;
+  }
+  #thanksText {
+    font-size: 0.9rem;
+    bottom: 15px;
+  }
+}
+
   </style>
 </head>
 
 <body>
   <!-- Welcome Popup -->
-  <div id="welcomePopup">
-    <div id="welcomePopupContent">
-      <h2>Welcome to Guess The Song! <br>By NightmareRally</h2>
-      <p><strong>How It Works:</strong></p>
-      <ul>
-        <li>Copy the share link from any Spotify playlist that you know well and paste it in the box (Around 100 songs max for reasonable loading time).</li>
-        <li>Choose whether you want to play infinitely or try the challenge mode.</li>
-        <li>First hint, song name and artist are 5 points each. Every time you hit next hint, they go down 1 point each.</li>
-        <li>Do your best to guess the songs as early as you can!</li>
-        <li>Thanks for playing!!!</li>
-      </ul>
-      <button id="welcomePlayBtn">Play</button>
-    </div>
+<div id="welcomePopup">
+  <div id="welcomePopupContent">
+    <h2>Welcome to Guess The Song! <br>By NightmareRally</h2>
+    <p><strong>How It Works:</strong></p>
+    <ul>
+      <li>Copy the share link from any Spotify playlist that you know well and paste it in the box (Around 100 songs max for reasonable loading time).</li>
+      <li>Choose whether you want to play infinitely or try the challenge mode.</li>
+      <li>First hint, song name and artist are 5 points each. Every time you hit next hint, they go down 1 point each.</li>
+      <li>Do your best to guess the songs as early as you can!</li>
+    </ul>
+    <button id="welcomePlayBtn">Play</button>
+    <div id="thanksText">Thanks for playing!!!</div>
   </div>
+</div>
+
 
   <h1>Guess the Song Game</h1>
 
@@ -712,6 +739,10 @@
         enableInputs(true);
         startNewRound();
       }
+document.getElementById('welcomePlayBtn').addEventListener('click', () => {
+  document.getElementById('welcomePopup').style.display = 'none';
+});
+
     });
   </script>
 </body>
